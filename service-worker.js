@@ -6,7 +6,7 @@
    ========================================================================== */
 
 // ── 캐시 버전 (배포 시 숫자 올리기) ────────────────────────────────────
-const CACHE_NAME = 'dotori-pharmacist-v18';
+const CACHE_NAME = 'dotori-pharmacist-v19';
 
 const APP_SHELL = [
   './',
