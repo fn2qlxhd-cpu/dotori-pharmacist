@@ -1,0 +1,8 @@
+{
+  "name": "dotori-pharmacist-checker",
+  "private": true,
+  "description": "도토리 약사님 - GitHub Actions 알림 체커 스크립트",
+  "dependencies": {
+    "firebase-admin": "^12.1.0"
+  }
+}

@@ -1,0 +1,503 @@
+/* ==========================================================================
+   도토리 약사님 — style.css (v9)
+   심플 버전: 한 화면에 모두 보이는 레이아웃
+
+   구조:
+   1. 디자인 토큰 (시간대별 색상 포함)
+   2. 기본 리셋 & 전체 레이아웃 (위가 고정되는 구조)
+   3. 헤더 — 마스코트 + 말풍선 + 색깔별 진행 막대 + 알림 배너
+   4. 마스코트 표정 / 반응 / 모션
+   5. 카드 (아이콘 + 제목 + 복용 버튼만 — 한 줄)
+   6. 업데이트 토스트 / 접근성 / 반응형
+   ========================================================================== */
+
+/* ── 1. 디자인 토큰 ─────────────────────────────────────────────────────── */
+:root {
+  --cream: #FBF6EE;
+  --card: #FFFFFF;
+  --line: #EFE6D9;
+
+  --ink: #4A3728;
+  --ink-soft: #9C8A7D;
+
+  --acorn: #A0673E;
+  --acorn-dark: #8A5632;
+
+  --amber: #F0A857;
+
+  --shadow-color: rgba(74, 55, 40, 0.08);
+
+  --radius-lg: 22px;
+  --radius-md: 16px;
+  --radius-full: 999px;
+
+  /* 시간대별 색상 — 아침(노랑) → 점심(주황) → 저녁(코랄) → 자기전(인디고) */
+  --color-morning: #F2B153;
+  --color-lunch:   #EE9450;
+  --color-dinner:  #DD7A6B;
+  --color-night:   #9C8FC9;
+
+  /* 카드 배경 — 위 색상의 아주 옅은 톤 */
+  --tint-morning: #FCF1DE;
+  --tint-lunch:   #FBEADC;
+  --tint-dinner:  #FAE5E1;
+  --tint-night:   #ECE9F6;
+}
+
+/* ── 2. 기본 리셋 & 전체 레이아웃 ───────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+}
+
+html {
+  font-size: 17px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden; /* 위(헤더)는 고정, 아래(카드)만 필요시 스크롤 */
+}
+
+button {
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* .app 은 화면 높이를 꽉 채운 flex 세로 박스.
+   .header 는 고정 높이(flex-shrink:0), .cards 가 남은 공간을 차지합니다.
+   카드 4개는 보통 화면에 모두 들어가도록 설계되어 있고,
+   아주 작은 화면/큰 글꼴 설정에서만 .cards 영역이 살짝 스크롤됩니다. */
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 20;
+  background: var(--cream);
+  padding: max(14px, env(safe-area-inset-top)) 18px 12px;
+  box-shadow: 0 6px 16px -8px var(--shadow-color);
+}
+
+
+/* ── 3. 헤더: 1행=[캐릭터+타이틀], 2행=[응원메시지] ─────────────────────── */
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.mascot-wrap {
+  flex-shrink: 0;
+  width: 62px;
+  height: 70px;
+}
+
+#mascotSvg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transform-origin: 50% 88%;
+  filter: drop-shadow(0 6px 10px rgba(74, 55, 40, 0.16));
+}
+
+/* 오른쪽: 앱 이름 + 날짜 */
+.brand-copy {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+}
+
+.app-title {
+  font-family: 'Jua', sans-serif;
+  font-size: 1.38rem;
+  color: var(--acorn-dark);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  margin-bottom: 2px;
+}
+
+.date-text {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* 2행: 응원 메시지 — 가로 전체 사용, 길어도 짤리지 않고 줄바꿈 허용 */
+.cheer-message {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--acorn-dark);
+  line-height: 1.45;
+  word-break: keep-all;
+  white-space: normal;
+  padding: 4px 4px 8px;
+  margin: 0;
+}
+
+.cheer-message.pulse {
+  animation: cheerPulse 0.4s ease;
+}
+
+@keyframes cheerPulse {
+  0%   { transform: scale(0.95); opacity: 0.3; }
+  55%  { transform: scale(1.04); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* 진행률 텍스트 */
+.progress-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+
+.progress-text {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.progress-text .num {
+  color: var(--acorn);
+  font-size: 1.12em;
+}
+
+.percent-text {
+  flex-shrink: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--acorn-dark);
+}
+
+/* 시간대별 색깔로 채워지는 진행 막대 — 아침/점심/저녁/자기전 4칸 */
+.progress-bar-multi {
+  display: flex;
+  gap: 5px;
+  height: 14px;
+}
+
+.seg {
+  flex: 1;
+  border-radius: var(--radius-full);
+  background: var(--line);
+  transition: background-color 0.25s ease, transform 0.25s ease;
+}
+
+.seg--morning.filled { background: var(--color-morning); }
+.seg--lunch.filled   { background: var(--color-lunch); }
+.seg--dinner.filled  { background: var(--color-dinner); }
+.seg--night.filled   { background: var(--color-night); }
+
+.seg.filled {
+  transform: scaleY(1.15);
+}
+
+
+/* ── 알림 권한 배너 — 허용되면 JS가 display:none 처리합니다 ─────────────── */
+.notif-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 11px 14px;
+  margin-top: 12px;
+  box-shadow: 0 2px 10px var(--shadow-color);
+}
+
+.notif-text {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.notif-banner.is-denied {
+  background: #FBEAEA;
+  border-color: transparent;
+}
+.notif-banner.is-denied .notif-text {
+  color: #C0524A;
+}
+
+.notif-btn {
+  flex-shrink: 0;
+  background: var(--acorn);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 9px 16px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.notif-btn:active { transform: scale(0.97); }
+.notif-btn:hover { opacity: 0.9; }
+
+
+/* ── 4. 마스코트 표정 / 반응 / 모션 ─────────────────────────────────────── */
+
+.face { display: none; }
+#mascotSvg.mood-sleepy .face-sleepy,
+#mascotSvg.mood-ok     .face-ok,
+#mascotSvg.mood-great  .face-great { display: block; }
+
+#mascotSvg.reacting .face-sleepy,
+#mascotSvg.reacting .face-ok,
+#mascotSvg.reacting .face-great { display: none; }
+
+#mascotSvg.reacting.react-wink  .face-react-wink,
+#mascotSvg.reacting.react-heart .face-react-heart,
+#mascotSvg.reacting.react-star  .face-react-star,
+#mascotSvg.reacting.react-blush .face-react-blush,
+#mascotSvg.reacting.react-wow   .face-react-wow { display: block; }
+
+.sparkles { display: none; }
+#mascotSvg.mood-great .sparkles,
+#mascotSvg.reacting   .sparkles { display: block; }
+
+@media (prefers-reduced-motion: no-preference) {
+  #mascotSvg.mood-great .sparkles path,
+  #mascotSvg.reacting   .sparkles path {
+    animation: twinkle 1.6s ease-in-out infinite;
+    transform-origin: center;
+  }
+  .sparkles path:nth-child(2) { animation-delay: 0.3s; }
+  .sparkles path:nth-child(3) { animation-delay: 0.6s; }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(0.7); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #mascotSvg.motion-bounce { animation: dotoriBounce 0.8s cubic-bezier(.2,.9,.2,1) both; }
+  #mascotSvg.motion-wiggle { animation: dotoriWiggle 0.85s ease both; }
+  #mascotSvg.motion-hop    { animation: dotoriHop 0.85s ease both; }
+  #mascotSvg.motion-spin   { animation: dotoriSpin 0.9s ease both; }
+  #mascotSvg.motion-nod    { animation: dotoriNod 0.8s ease both; }
+  #mascotSvg.motion-pulse  { animation: dotoriPulse 0.75s ease both; }
+  #mascotSvg.motion-swing  { animation: dotoriSwing 0.9s ease both; }
+  #mascotSvg.motion-shake  { animation: dotoriShake 0.65s ease both; }
+  #mascotSvg.motion-float  { animation: dotoriFloat 1s ease both; }
+  #mascotSvg.motion-ta-da  { animation: dotoriTada 0.95s ease both; }
+}
+
+@keyframes dotoriBounce { 0%,100%{transform:translateY(0) scale(1)} 35%{transform:translateY(-13px) scale(1.06)} 65%{transform:translateY(2px) scale(.98)} }
+@keyframes dotoriWiggle { 0%,100%{transform:rotate(0)} 18%{transform:rotate(-10deg)} 36%{transform:rotate(9deg)} 54%{transform:rotate(-6deg)} 72%{transform:rotate(4deg)} }
+@keyframes dotoriHop    { 0%,100%{transform:translate(0,0)} 25%{transform:translate(-6px,-10px)} 50%{transform:translate(5px,0)} 75%{transform:translate(7px,-7px)} }
+@keyframes dotoriSpin   { 0%{transform:rotate(0) scale(1)} 40%{transform:rotate(-13deg) scale(1.07)} 75%{transform:rotate(9deg) scale(1.03)} 100%{transform:rotate(0) scale(1)} }
+@keyframes dotoriNod    { 0%,100%{transform:rotate(0) translateY(0)} 30%{transform:rotate(6deg) translateY(2px)} 60%{transform:rotate(-4deg) translateY(-3px)} }
+@keyframes dotoriPulse  { 0%,100%{transform:scale(1)} 45%{transform:scale(1.14)} }
+@keyframes dotoriSwing  { 0%,100%{transform:rotate(0)} 20%{transform:rotate(9deg)} 40%{transform:rotate(-8deg)} 60%{transform:rotate(5deg)} 80%{transform:rotate(-3deg)} }
+@keyframes dotoriShake  { 0%,100%{transform:translateX(0)} 18%{transform:translateX(-5px)} 36%{transform:translateX(5px)} 54%{transform:translateX(-3px)} 72%{transform:translateX(3px)} }
+@keyframes dotoriFloat  { 0%,100%{transform:translateY(0)} 35%{transform:translateY(-11px) rotate(-2deg)} 70%{transform:translateY(-4px) rotate(2deg)} }
+@keyframes dotoriTada   { 0%{transform:scale(1)} 15%{transform:scale(.93) rotate(-6deg)} 30%{transform:scale(1.13) rotate(7deg)} 45%{transform:scale(1.08) rotate(-5deg)} 60%{transform:scale(1.06) rotate(4deg)} 100%{transform:scale(1) rotate(0)} }
+
+
+/* ── 5. 카드 — 아이콘+제목 / 복용 버튼, 한 줄 ───────────────────────────── */
+.cards {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  padding: 14px 18px max(16px, calc(env(safe-area-inset-bottom) + 10px));
+}
+
+.card {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  background: var(--tint, var(--card));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 13px 16px;
+  box-shadow: 0 2px 12px var(--shadow-color);
+  transition: border-color 0.1s ease;
+}
+
+.card--morning { --tint: var(--tint-morning); --accent: var(--color-morning); }
+.card--lunch   { --tint: var(--tint-lunch);   --accent: var(--color-lunch); }
+.card--dinner  { --tint: var(--tint-dinner);  --accent: var(--color-dinner); }
+.card--night   { --tint: var(--tint-night);   --accent: var(--color-night); }
+
+.card.is-done {
+  border-color: var(--accent);
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Jua', sans-serif;
+  font-size: 1.12rem;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  min-width: 0;
+}
+
+.card-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* 복용 완료 버튼 — 탭하면 색/아이콘/문구가 즉시 바뀝니다 (지연 없음) */
+.check-btn {
+  flex-shrink: 0;
+  min-width: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 11px 16px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--line);
+  background: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background-color 0.08s linear, border-color 0.08s linear, color 0.08s linear;
+}
+
+.check-btn:active {
+  transform: scale(0.97);
+}
+
+.check-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: background-color 0.08s linear, border-color 0.08s linear, color 0.08s linear;
+}
+
+.card.is-done .check-btn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.card.is-done .check-icon {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: var(--accent);
+}
+
+
+/* ── 6. 업데이트 토스트 / 접근성 / 반응형 ───────────────────────────────── */
+.update-toast {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 500;
+  transform: translate(-50%, -14px);
+
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: var(--radius-full);
+  box-shadow: 0 6px 16px rgba(74, 55, 40, 0.25);
+  white-space: nowrap;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.update-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 작은 화면 대응 */
+@media (max-width: 380px) {
+  .header { padding-left: 14px; padding-right: 14px; }
+  .cards  { padding-left: 14px; padding-right: 14px; }
+
+  .brand-row { gap: 8px; }
+  .mascot-wrap { width: 54px; height: 61px; }
+  .app-title { font-size: 1.22rem; }
+  .date-text { font-size: 0.74rem; }
+  .cheer-message { font-size: 0.82rem; }
+
+  .progress-text, .percent-text { font-size: 0.88rem; }
+
+  .card { padding: 11px 14px; }
+  .card-title { font-size: 1.04rem; }
+  .check-btn { min-width: 116px; padding: 10px 12px; font-size: 0.9rem; }
+}
+
+/* 매우 낮은 화면 높이 (가로모드 등) — 여백을 더 줄여 한 화면을 유지 */
+@media (max-height: 600px) {
+  .header { padding-top: max(10px, env(safe-area-inset-top)); padding-bottom: 8px; }
+  .brand-row { margin-bottom: 8px; }
+  .mascot-wrap { width: 50px; height: 56px; }
+  .progress-row { margin-bottom: 5px; }
+  .notif-banner { margin-top: 8px; padding: 8px 12px; }
+  .cards { gap: 8px; padding-top: 10px; padding-bottom: 10px; }
+  .card { padding: 10px 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

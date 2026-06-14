@@ -1,0 +1,17 @@
+rules_version = '2';
+
+// 도토리 약사님 — Firestore 보안 규칙
+//
+// 각 기기는 익명 로그인으로 받은 uid로만 자기 자신의 문서를
+// 읽고 쓸 수 있습니다. 다른 사람의 데이터는 볼 수 없습니다.
+//
+// (GitHub Actions 체커는 "서비스 계정"으로 접근하기 때문에
+//  이 규칙과 무관하게 항상 모든 문서를 읽을 수 있습니다.)
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
