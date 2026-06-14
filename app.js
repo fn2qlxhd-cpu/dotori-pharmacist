@@ -636,6 +636,12 @@ function applyUpdate(worker) {
 function watchForUpdates(registration) {
   if (!registration) return;
 
+  // 새로고침으로 인한 재진입이면 업데이트 감지 스킵
+  if (sessionStorage.getItem('sw-reloaded') === '1') {
+    sessionStorage.removeItem('sw-reloaded');
+    return;
+  }
+
   // 페이지를 열었을 때, 이미 새 버전이 설치되어 대기 중이라면
   if (registration.waiting && navigator.serviceWorker.controller) {
     applyUpdate(registration.waiting);
@@ -651,11 +657,12 @@ function watchForUpdates(registration) {
     });
   });
 
-  // 새 서비스워커가 활성화되어 컨트롤을 가져가면 → 새로고침
+  // 새 서비스워커가 활성화되어 컨트롤을 가져가면 → 새로고침 (1회만)
   let reloaded = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (reloaded) return;
     reloaded = true;
+    sessionStorage.setItem('sw-reloaded', '1'); // 재진입 방지 플래그
     window.location.reload();
   });
 
