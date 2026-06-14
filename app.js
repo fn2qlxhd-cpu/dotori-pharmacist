@@ -70,23 +70,51 @@ const CHEER_MESSAGES = [
   '잘 챙겼어요 👍',
 ];
 
-// 가운데 응원 메시지 영역의 평소 기본 문구
+// 하단 전용 응원 메시지 6개 — 상단 말풍선과 별개로 1시간마다 랜덤 변경
+const BOTTOM_CHEER_MESSAGES = [
+  '도토리약사의 소원은 하나! 오늘도 약 잘 챙겨드시고 오래오래 건강하세요 ✨',
+  '매일 약 잘 챙겨드시고, 도토리약사와 함께 건강한 하루 보내세요 ❤️',
+  '오늘도 어머님의 건강을 위해 도토리약사가 응원하고 있어요 🌰',
+  '꼬박꼬박 약 챙겨드시고, 오늘 하루도 누구보다 행복하세요 ✨',
+  '작은 약 한 번이 오늘의 건강을 지켜줘요. 늘 건강하세요 💊',
+  '오늘도 잊지 않고 챙겨드시면 참 잘하신 거예요. 화이팅! 🍀'
+];
+
+// 상단 캐릭터 말풍선의 평소 기본 문구
 var DEFAULT_MESSAGE = '오늘도 건강하세요 🌱';
 
-// 앱 실행 시 + 1시간마다 응원 메시지를 랜덤하게 바꿉니다.
-function startCheerRotation() {
-  function rotateCheer() {
-    const candidates = CHEER_MESSAGES.filter(m => m !== DEFAULT_MESSAGE);
-    DEFAULT_MESSAGE = candidates[Math.floor(Math.random() * candidates.length)];
-    const el = document.getElementById('mascotBubble');
-    if (el && !el.classList.contains('pulse')) {
-      el.textContent = DEFAULT_MESSAGE;
-    }
+// 하단 응원 메시지는 상단 말풍선과 별개로 1시간마다 랜덤 변경됩니다.
+function startBottomCheerRotation() {
+  const bottom = document.getElementById('bottomMessage');
+  if (!bottom) return;
+
+  function rotateBottomCheer() {
+    const current = bottom.textContent;
+    const candidates = BOTTOM_CHEER_MESSAGES.filter(m => m !== current);
+    const next = candidates[Math.floor(Math.random() * candidates.length)] || BOTTOM_CHEER_MESSAGES[0];
+
+    bottom.classList.remove('pulse');
+    bottom.textContent = next;
+    void bottom.offsetWidth;
+    bottom.classList.add('pulse');
+
+    window.clearTimeout(startBottomCheerRotation._pulseTimer);
+    startBottomCheerRotation._pulseTimer = window.setTimeout(() => {
+      bottom.classList.remove('pulse');
+    }, 900);
   }
-  // 앱 열자마자 바로 한 번 랜덤 변경
-  rotateCheer();
-  // 이후 1시간마다 자동 변경
-  setInterval(rotateCheer, 60 * 60 * 1000);
+
+  rotateBottomCheer();
+  setInterval(rotateBottomCheer, 60 * 60 * 1000);
+}
+
+// 상단 캐릭터 말풍선만 앱 실행 시 랜덤하게 초기화합니다.
+function startCheerRotation() {
+  const el = document.getElementById('mascotBubble');
+  if (!el) return;
+  // 상단 말풍선은 자동 변경하지 않습니다.
+  // 복용 완료 버튼을 눌렀을 때만 triggerMascotCheer()에서 랜덤 변경됩니다.
+  el.textContent = DEFAULT_MESSAGE;
 }
 
 const REACTIONS = ['react-wink', 'react-heart', 'react-star', 'react-blush', 'react-wow'];
@@ -110,9 +138,11 @@ function triggerMascotCheer() {
   mascot.classList.remove('reacting');
   cheer.classList.remove('pulse');
 
+  // 상단 말풍선은 복용 완료 버튼을 눌렀을 때만 랜덤 변경
   cheer.textContent = message;
 
-  void mascot.offsetWidth; // 강제 리플로우 — 애니메이션 재실행 보장
+  void mascot.offsetWidth;
+  void cheer.offsetWidth;
 
   mascot.classList.add('reacting', reaction, motion);
   cheer.classList.add('pulse');
@@ -121,8 +151,9 @@ function triggerMascotCheer() {
   triggerMascotCheer._timer = window.setTimeout(() => {
     mascot.classList.remove('reacting', reaction, motion);
     cheer.classList.remove('pulse');
+    // 랜덤 멘트를 잠깐 보여준 뒤 기본 문구로 복귀
     cheer.textContent = DEFAULT_MESSAGE;
-  }, 1600);
+  }, 1800);
 }
 
 
@@ -377,12 +408,17 @@ async function requestNotificationPermission() {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       playReminderSound();
-      // Firebase가 아직 초기화 안 됐으면 여기서 다시 시도
-      if (!fcmMessaging) await initFirebase();
+      // Firebase 반드시 초기화 후 토큰 요청
+      await initFirebase();
+      // SW 준비될 때까지 최대 3초 대기
+      await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise(r => setTimeout(r, 3000))
+      ]);
       await getFcmToken();
     }
   } catch (e) {
-    console.warn('[도토리 약사님] 알림 권한 요청 중 문제가 발생했어요:', e);
+    console.warn('[도토리] 알림 권한 요청 오류:', e);
   }
   renderNotifBanner();
 }
@@ -468,11 +504,9 @@ function startNotificationLoop() {
 async function initFirebase() {
   if (typeof firebase === 'undefined') return;
   if (typeof FIREBASE_CONFIG === 'undefined') return;
-  // 플레이스홀더 값이면 건너뜀
   if (!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey.startsWith('여기에')) return;
 
   try {
-    // 이미 초기화된 앱이 있으면 재사용
     const app = firebase.apps.length
       ? firebase.app()
       : firebase.initializeApp(FIREBASE_CONFIG);
@@ -493,25 +527,40 @@ async function initFirebase() {
     });
 
     syncToFirestore();
+    console.log('[도토리] Firebase 초기화 완료, uid:', currentUid);
   } catch (e) {
-    console.warn('[도토리 약사님] Firebase 초기화를 건너뜁니다(설정 전이거나 오프라인):', e);
+    console.warn('[도토리] Firebase 초기화 실패:', e);
   }
 }
 
 async function getFcmToken() {
-  if (!fcmMessaging) return;
   try {
+    // 1) 기본 조건 체크
+    if (typeof firebase === 'undefined') { console.warn('[도토리] firebase 미로드'); return; }
+    if (!fcmMessaging) { console.warn('[도토리] fcmMessaging null → initFirebase 재시도'); await initFirebase(); }
+    if (!fcmMessaging) { console.warn('[도토리] initFirebase 후에도 fcmMessaging null'); return; }
+    if (!('serviceWorker' in navigator)) { console.warn('[도토리] SW 미지원'); return; }
+    if (Notification.permission !== 'granted') { console.warn('[도토리] 알림 권한 없음'); return; }
+
+    // 2) 서비스워커 준비 대기
     const registration = await navigator.serviceWorker.ready;
+    console.log('[도토리] SW 준비됨:', registration.scope);
+
+    // 3) FCM 토큰 요청
     const token = await fcmMessaging.getToken({
       vapidKey: VAPID_KEY,
       serviceWorkerRegistration: registration,
     });
+
     if (token) {
       state.fcmToken = token;
+      console.log('[도토리] FCM 토큰 발급 성공 ✅');
       syncToFirestore();
+    } else {
+      console.warn('[도토리] 토큰 빈값');
     }
   } catch (e) {
-    console.warn('[도토리 약사님] FCM 토큰을 받지 못했어요:', e);
+    console.warn('[도토리] getFcmToken 오류:', e.code, e.message);
   }
 }
 
@@ -522,6 +571,7 @@ function syncToFirestore() {
     checks: state.checks,
     notified: state.notified,
     fcmToken: state.fcmToken || null,
+    userAgent: navigator.userAgent || '',
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   }, { merge: true }).catch((e) => {
     console.warn('[도토리 약사님] Firestore 동기화 실패:', e);
@@ -600,6 +650,8 @@ function registerServiceWorker() {
 
 async function init() {
   loadState();
+  startCheerRotation(); // 상단 말풍선 초기 문구
+  startBottomCheerRotation(); // 하단 응원 메시지 1시간 랜덤 순환
   render();
   renderNotifBanner();
 
@@ -607,15 +659,29 @@ async function init() {
 
   watchForMidnightRollover();
   startNotificationLoop();
-  startCheerRotation(); // 1시간마다 응원 메시지 자동 변경
 
   await registerServiceWorker();
-  await initFirebase(); // ← Firebase 먼저 완전히 초기화
+  await initFirebase();
 
-  // initFirebase()가 끝난 뒤에 토큰을 요청해야 fcmMessaging이 준비돼 있어요.
   if ('Notification' in window && Notification.permission === 'granted') {
     await getFcmToken();
   }
 }
+
+
+// iOS Safari 더블탭/제스처 확대 방지
+let __dotoriLastTouchEnd = 0;
+document.addEventListener('touchend', function(event) {
+  const now = Date.now();
+  if (now - __dotoriLastTouchEnd <= 320) {
+    event.preventDefault();
+  }
+  __dotoriLastTouchEnd = now;
+}, { passive: false });
+
+document.addEventListener('gesturestart', function(event) {
+  event.preventDefault();
+});
+
 
 document.addEventListener('DOMContentLoaded', init);
