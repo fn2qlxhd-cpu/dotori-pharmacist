@@ -12,6 +12,7 @@ try {
   firebase.initializeApp(FIREBASE_CONFIG);
   const messaging = firebase.messaging();
 
+  /* ── 앱이 백그라운드(꺼진 상태)일 때 FCM 푸시 수신 ── */
   messaging.onBackgroundMessage((payload) => {
     const title = (payload.notification && payload.notification.title) || '도토리 약사님';
     const body  = (payload.notification && payload.notification.body)  || '약 먹을 시간이에요 💊';
@@ -33,6 +34,7 @@ try {
   console.warn('[FCM SW] 초기화 실패:', err.message);
 }
 
+/* ── 알림 클릭 → 앱 창 열기 또는 포커스 ── */
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = (event.notification.data && event.notification.data.url)

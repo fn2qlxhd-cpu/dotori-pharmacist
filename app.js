@@ -316,7 +316,19 @@ function renderCards() {
       </button>
     `;
 
-    card.querySelector('.check-btn').addEventListener('click', () => toggleCheck(p.id));
+    const btn = card.querySelector('.check-btn');
+
+    // ★ touchstart: 모바일에서 손가락 닿는 순간 즉각 반응 (300ms 딜레이 제거)
+    btn.addEventListener('touchstart', (e) => {
+      e.preventDefault(); // click 이벤트 중복 방지
+      toggleCheck(p.id);
+    }, { passive: false });
+
+    // 마우스(PC) 환경 fallback
+    btn.addEventListener('click', (e) => {
+      if (e.detail === 0) return; // touchstart가 이미 처리한 경우 스킵
+      toggleCheck(p.id);
+    });
 
     container.appendChild(card);
   });
@@ -542,14 +554,35 @@ async function getFcmToken() {
     if (!('serviceWorker' in navigator)) { console.warn('[도토리] SW 미지원'); return; }
     if (Notification.permission !== 'granted') { console.warn('[도토리] 알림 권한 없음'); return; }
 
-    // 2) 서비스워커 준비 대기
-    const registration = await navigator.serviceWorker.ready;
-    console.log('[도토리] SW 준비됨:', registration.scope);
+    // 2) FCM 전용 서비스워커(firebase-messaging-sw.js) 등록 또는 기존 것 재사용
+    //    ★ navigator.serviceWorker.ready 는 service-worker.js 를 반환할 수 있어
+    //      FCM 토큰 발급이 401로 거부됩니다. 반드시 이름을 명시해야 합니다.
+    let messagingSWReg;
+    const existingRegs = await navigator.serviceWorker.getRegistrations();
+    messagingSWReg = existingRegs.find(
+      r => r.active && r.active.scriptURL.includes('firebase-messaging-sw.js')
+    );
+
+    if (!messagingSWReg) {
+      messagingSWReg = await navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: './' });
+      // 활성화될 때까지 최대 5초 대기
+      await Promise.race([
+        new Promise(resolve => {
+          if (messagingSWReg.active) { resolve(); return; }
+          messagingSWReg.addEventListener('updatefound', () => {
+            const w = messagingSWReg.installing;
+            w.addEventListener('statechange', () => { if (w.state === 'activated') resolve(); });
+          });
+        }),
+        new Promise(r => setTimeout(r, 5000)),
+      ]);
+    }
+    console.log('[도토리] FCM SW 준비됨:', messagingSWReg.scope);
 
     // 3) FCM 토큰 요청
     const token = await fcmMessaging.getToken({
       vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: registration,
+      serviceWorkerRegistration: messagingSWReg,
     });
 
     if (token) {

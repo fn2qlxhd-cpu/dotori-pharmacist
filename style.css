@@ -399,11 +399,17 @@ button {
   font-weight: 700;
   color: var(--ink-soft);
   cursor: pointer;
-  transition: background-color 0.08s linear, border-color 0.08s linear, color 0.08s linear;
+
+  /* ★ 즉각 반응: transition 제거, 터치 최적화 */
+  transition: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .check-btn:active {
-  transform: scale(0.97);
+  transform: scale(0.96);
 }
 
 .check-icon {
@@ -417,7 +423,7 @@ button {
   justify-content: center;
   font-size: 0.85rem;
   line-height: 1;
-  transition: background-color 0.08s linear, border-color 0.08s linear, color 0.08s linear;
+  transition: none; /* ★ 즉각 반응 */
 }
 
 .card.is-done .check-btn {
