@@ -641,68 +641,20 @@ function syncToFirestore() {
 
 
 /* ────────────────────────────────────────────────────────────────────────
-   10. 서비스워커 등록 + 자동 업데이트
+   10. 서비스워커 등록
 
-   배포 후 새 버전이 감지되면:
-   1) 화면에 "새 버전으로 업데이트 중..." 잠깐 표시
-   2) 새 서비스워커를 즉시 활성화
-   3) 자동으로 새로고침
+   최종 고정 버전:
+   - 접속할 때마다 service worker 업데이트 체크하지 않음
+   - "새 버전으로 업데이트 중..." 토스트 표시하지 않음
+   - 자동 새로고침하지 않음
    ──────────────────────────────────────────────────────────────────────── */
-
-function showUpdateToast() {
-  const toast = document.getElementById('updateToast');
-  if (toast) toast.classList.add('show');
-}
-
-function applyUpdate(worker) {
-  showUpdateToast();
-  window.setTimeout(() => {
-    if (worker) worker.postMessage({ type: 'SKIP_WAITING' });
-  }, 900);
-}
-
-function watchForUpdates(registration) {
-  if (!registration) return;
-
-  // 새로고침으로 인한 재진입이면 업데이트 감지 스킵
-  if (sessionStorage.getItem('sw-reloaded') === '1') {
-    sessionStorage.removeItem('sw-reloaded');
-    return;
-  }
-
-  // 페이지를 열었을 때, 이미 새 버전이 설치되어 대기 중이라면
-  if (registration.waiting && navigator.serviceWorker.controller) {
-    applyUpdate(registration.waiting);
-  }
-
-  registration.addEventListener('updatefound', () => {
-    const newWorker = registration.installing;
-    if (!newWorker) return;
-    newWorker.addEventListener('statechange', () => {
-      if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-        applyUpdate(newWorker);
-      }
-    });
-  });
-
-  // 새 서비스워커가 활성화되어 컨트롤을 가져가면 → 새로고침 (1회만)
-  let reloaded = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloaded) return;
-    reloaded = true;
-    sessionStorage.setItem('sw-reloaded', '1'); // 재진입 방지 플래그
-    window.location.reload();
-  });
-
-  // 페이지를 열 때마다 새 버전이 있는지 확인
-  registration.update().catch(() => {});
-}
 
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+
   return navigator.serviceWorker.register('service-worker.js')
     .then((registration) => {
-      watchForUpdates(registration);
+      console.log('[도토리 약사님] 서비스워커 등록 완료:', registration.scope);
       return registration;
     })
     .catch((err) => {

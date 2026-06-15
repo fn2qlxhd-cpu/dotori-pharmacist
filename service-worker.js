@@ -1,12 +1,12 @@
 /* ==========================================================================
-   도토리 약사님 — service-worker.js (v12)
-   PWA 캐시 + 자동 업데이트
+   도토리 약사님 — service-worker.js (v13-final)
+   PWA 캐시 전용 / 자동 업데이트 토스트 제거
    ★ FCM 백그라운드 알림은 firebase-messaging-sw.js 가 전담합니다.
       이 파일에서는 Firebase를 로드하지 않습니다.
    ========================================================================== */
 
 // ── 캐시 버전 (배포 시 숫자 올리기) ────────────────────────────────────
-const CACHE_NAME = 'dotori-pharmacist-v18';
+const CACHE_NAME = 'dotori-pharmacist-v19-final';
 
 const APP_SHELL = [
   './',
