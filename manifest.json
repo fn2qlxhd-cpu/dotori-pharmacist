@@ -2,7 +2,7 @@
   "name": "도토리 약사님",
   "short_name": "도토리 약사님",
   "description": "아침약, 점심약, 저녁약, 자기전약 복용을 체크하고 알려주는 앱",
-  "start_url": "./index.html?v=15",
+  "start_url": "./index.html?v=16",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
@@ -10,7 +10,7 @@
   "theme_color": "#FBF6EE",
   "lang": "ko",
   "id": "/dotori-pharmacist",
-  "version": "15.0.0",
+  "version": "16.0.0",
   "icons": [
     {
       "src": "icons/icon-72.png",
