@@ -2,7 +2,10 @@ name: 도토리 약사님 - 복약 알림 체커
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '0 0 * * *'   # KST 09:00
+    - cron: '0 4 * * *'   # KST 13:00
+    - cron: '0 10 * * *'  # KST 19:00
+    - cron: '0 12 * * *'  # KST 21:00
   workflow_dispatch:
     inputs:
       test_notification:
