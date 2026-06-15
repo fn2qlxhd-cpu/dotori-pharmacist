@@ -34,20 +34,50 @@ function nowHourKST() {
 
 // ── FCM 메시지 빌더 ────────────────────────────────────────────────────────
 function buildMessage(token, title, body, tag) {
-  // 중요: Web FCM에서 notification/webpush.notification payload를 같이 보내면
-  // 브라우저 자동 표시 + service worker 수동 표시가 겹쳐 2개씩 뜰 수 있습니다.
-  // 그래서 data-only로 보내고 firebase-messaging-sw.js에서 딱 1번만 showNotification 합니다.
+  const t = String(title || APP_NAME);
+  const b = String(body || '약 먹을 시간이에요 💊');
+  const tg = String(tag || `dotori-${Date.now()}`);
+
   return {
     token,
+    // ★ notification 블록 필수 — iOS(APNs)는 이게 없으면 백그라운드에서 무시
+    notification: { title: t, body: b },
     data: {
-      title: String(title || APP_NAME),
-      body: String(body || '약 먹을 시간이에요 💊'),
-      tag: String(tag || `dotori-${Date.now()}`),
+      title: t,
+      body: b,
+      tag: tg,
       url: '/',
     },
     webpush: {
       headers: { Urgency: 'high' },
+      notification: {
+        title: t,
+        body: b,
+        icon: 'icons/icon-192.png',
+        badge: 'icons/icon-192.png',
+        tag: tg,
+        requireInteraction: true,
+        renotify: true,
+      },
       fcmOptions: { link: '/' },
+    },
+    apns: {
+      payload: {
+        aps: {
+          alert: { title: t, body: b },
+          sound: 'default',
+          badge: 1,
+        },
+      },
+    },
+    android: {
+      priority: 'high',
+      notification: {
+        title: t,
+        body: b,
+        sound: 'default',
+        tag: tg,
+      },
     },
   };
 }
