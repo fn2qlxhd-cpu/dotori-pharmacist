@@ -117,7 +117,11 @@ button {
   height: 100%;
   display: block;
   transform-origin: 50% 88%;
-  filter: drop-shadow(0 6px 10px rgba(74, 55, 40, 0.16));
+  filter: none;
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+
 }
 
 /* 오른쪽: 앱 이름 + 날짜 */
