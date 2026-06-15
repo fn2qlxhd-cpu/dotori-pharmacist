@@ -531,10 +531,15 @@ async function initFirebase() {
     fcmMessaging = firebase.messaging(app);
 
     fcmMessaging.onMessage((payload) => {
-      const title = (payload.notification && payload.notification.title) || APP_CONFIG.appName;
-      const body  = (payload.notification && payload.notification.body) || '';
+      const title = (payload.data && payload.data.title)
+        || (payload.notification && payload.notification.title)
+        || APP_CONFIG.appName;
+      const body = (payload.data && payload.data.body)
+        || (payload.notification && payload.notification.body)
+        || '';
+      const tag = (payload.data && payload.data.tag) || `dotori-foreground-${Date.now()}`;
       if (Notification.permission === 'granted') {
-        new Notification(title, { body, icon: 'icons/icon-192.png' });
+        new Notification(title, { body, icon: 'icons/icon-192.png', tag });
       }
     });
 

@@ -14,18 +14,24 @@ try {
 
   /* ── 앱이 백그라운드(꺼진 상태)일 때 FCM 푸시 수신 ── */
   messaging.onBackgroundMessage((payload) => {
-    const title = (payload.notification && payload.notification.title) || '도토리 약사님';
-    const body  = (payload.notification && payload.notification.body)  || '약 먹을 시간이에요 💊';
+    const title = (payload.data && payload.data.title)
+      || (payload.notification && payload.notification.title)
+      || '도토리 약사님';
+    const body = (payload.data && payload.data.body)
+      || (payload.notification && payload.notification.body)
+      || '약 먹을 시간이에요 💊';
+    const tag = (payload.data && payload.data.tag) || 'dotori-fcm';
+    const url = (payload.data && payload.data.url) || self.location.origin;
 
     return self.registration.showNotification(title, {
       body,
       icon:               'icons/icon-192.png',
       badge:              'icons/icon-192.png',
-      tag:                (payload.data && payload.data.tag) || 'dotori-fcm',
+      tag,
       requireInteraction: true,
       renotify:           true,
       vibrate:            [200, 100, 200],
-      data:               { url: self.location.origin },
+      data:               { url },
     });
   });
 

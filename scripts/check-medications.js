@@ -34,26 +34,20 @@ function nowHourKST() {
 
 // ── FCM 메시지 빌더 ────────────────────────────────────────────────────────
 function buildMessage(token, title, body, tag) {
+  // 중요: Web FCM에서 notification/webpush.notification payload를 같이 보내면
+  // 브라우저 자동 표시 + service worker 수동 표시가 겹쳐 2개씩 뜰 수 있습니다.
+  // 그래서 data-only로 보내고 firebase-messaging-sw.js에서 딱 1번만 showNotification 합니다.
   return {
     token,
-    notification: { title, body },
+    data: {
+      title: String(title || APP_NAME),
+      body: String(body || '약 먹을 시간이에요 💊'),
+      tag: String(tag || `dotori-${Date.now()}`),
+      url: '/',
+    },
     webpush: {
-      notification: {
-        icon: 'icons/icon-192.png',
-        badge: 'icons/icon-192.png',
-        tag,
-        requireInteraction: true,
-        renotify: true,
-        vibrate: [200, 100, 200],
-      },
+      headers: { Urgency: 'high' },
       fcmOptions: { link: '/' },
-    },
-    android: {
-      priority: 'high',
-      notification: { sound: 'default', defaultVibrateTimings: true },
-    },
-    apns: {
-      payload: { aps: { sound: 'default' } },
     },
   };
 }
@@ -92,10 +86,18 @@ async function main() {
   const snap = await db.collection('users').get();
   console.log(`[도토리 약사님] 등록 기기: ${snap.size}개`);
 
+  // 같은 FCM 토큰이 여러 user 문서에 남아 있어도 한 번만 발송
+  const sentTokens = new Set();
+
   for (const doc of snap.docs) {
     const data = doc.data();
     const token = data.fcmToken;
     if (!token) { console.log(`  - ${doc.id.slice(0,8)}: 토큰 없음 → 스킵`); continue; }
+    if (sentTokens.has(token)) {
+      console.log(`  - ${doc.id.slice(0,8)}: 중복 토큰 → 스킵`);
+      continue;
+    }
+    sentTokens.add(token);
 
     // ── 테스트 모드: 즉시 1회 발송 ──
     if (TEST_MODE) {
