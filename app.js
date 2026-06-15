@@ -1,5 +1,5 @@
 /* ==========================================================================
-   도토리 약사님 — app.js (v9)
+   도토리 약사님 — app.js (v15-ios-android-alarm-final)
    심플 버전: 시간/약 이름 설정 없음. 아침약/점심약/저녁약/자기전약 체크 +
    고정 스케줄 알림(09:00 / 13:00 / 19:00 / 21:00, 각 시간 1회) + FCM 연동
    + PWA 자동 업데이트
@@ -32,7 +32,7 @@ var APP_CONFIG = {
 // localStorage 키
 const STORAGE_KEYS = {
   checks:   'dotori_checks',   // { date, morning:bool, lunch:bool, dinner:bool, night:bool }
-  notified: 'dotori_notified', // { date, morning:0|1, ... } 0=안보냄 1=오늘 알림 보냄
+  notified: 'dotori_notified', // { date, morning:0|1, ... } 0=안보냄 1=오늘 로컬 알림 보냄
 };
 
 
@@ -501,8 +501,13 @@ function sendMedicationNotification(period, stage) {
 // 로컬 브라우저 알림 루프 — FCM이 늦거나 실패할 때 탭이 열려있으면 직접 발송
 // (tag가 같아서 FCM 알림과 겹쳐도 브라우저가 1개만 표시)
 function startNotificationLoop() {
+  if (!('Notification' in window)) return;
+  // 앱을 알림 시간 이후에 켰을 때, 지난 알림이 뒤늦게 뜨는 것을 막습니다.
+  // 단, 앱을 알림 시간 전에 켜둔 상태라면 정각 알림은 정상 발송됩니다.
+  const loopStartedAt = new Date();
+
   function checkAndNotify() {
-    if (Notification.permission !== 'granted') return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -511,9 +516,13 @@ function startNotificationLoop() {
       const [h, m] = period.notifyTime.split(':').map(Number);
       const targetMinutes = h * 60 + m;
       const diff = currentMinutes - targetMinutes;
+      const targetDate = new Date(now);
+      targetDate.setHours(h, m, 0, 0);
 
-      // 알림 시간 이후 10분 이내이고, 오늘 아직 발송 안 한 경우
-      if (diff >= 0 && diff < 10 && !state.notified[period.id]) {
+      // 알림 시간 이후 15분 이내이고, 오늘 아직 로컬 발송 안 한 경우
+      // 앱을 나중에 열어서 생기는 '지각 알림'은 보내지 않습니다.
+      // 서버(GitHub Actions/FCM)도 같은 15분 안전창을 사용합니다.
+      if (targetDate >= loopStartedAt && diff >= 0 && diff < 15 && !state.notified[period.id]) {
         state.notified[period.id] = 1;
         saveJSON(STORAGE_KEYS.notified, state.notified);
         sendMedicationNotification(period, 1);
@@ -682,12 +691,38 @@ function syncToFirestore() {
    - 자동 새로고침하지 않음
    ──────────────────────────────────────────────────────────────────────── */
 
-function registerServiceWorker() {
+async function cleanupLegacyServiceWorkers() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map(reg => {
+      const url = (reg.active && reg.active.scriptURL)
+        || (reg.waiting && reg.waiting.scriptURL)
+        || (reg.installing && reg.installing.scriptURL)
+        || '';
+
+      // 예전 버전에서 service-worker.js가 따로 등록되어 있으면 FCM SW와 충돌할 수 있어 제거합니다.
+      // 같은 scope에는 firebase-messaging-sw.js 하나만 남기는 것이 최종 구조입니다.
+      if (url.includes('/service-worker.js')) {
+        console.log('[도토리] 기존 service-worker.js 제거');
+        return reg.unregister();
+      }
+      return Promise.resolve();
+    }));
+  } catch (e) {
+    console.warn('[도토리] 기존 서비스워커 정리 실패:', e);
+  }
+}
+
+async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return Promise.resolve(null);
 
-  return navigator.serviceWorker.register('service-worker.js')
+  await cleanupLegacyServiceWorkers();
+
+  return navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: './' })
     .then((registration) => {
-      console.log('[도토리 약사님] 서비스워커 등록 완료:', registration.scope);
+      console.log('[도토리 약사님] 통합 서비스워커 등록 완료:', registration.scope);
+      if (registration.update) registration.update().catch(() => {});
       return registration;
     })
     .catch((err) => {
@@ -711,9 +746,9 @@ async function init() {
   document.getElementById('notifBtn').addEventListener('click', requestNotificationPermission);
 
   watchForMidnightRollover();
-  startNotificationLoop();
 
   await registerServiceWorker();
+  startNotificationLoop();
   await initFirebase();
 
   if ('Notification' in window && Notification.permission === 'granted') {

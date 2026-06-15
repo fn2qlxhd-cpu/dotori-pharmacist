@@ -1,9 +1,9 @@
 /* ==========================================================================
-   check-medications.js (v11)
+   check-medications.js (v15-ios-android-alarm-final)
    GitHub Actions 5분 cron으로 실행 — FCM 푸시 발송 담당
 
    핵심 로직:
-   - "정해진 시간이 지났고, 오늘 아직 못 보낸" 시간대만 발송 (>= 비교)
+   - "정해진 시간 후 15분 이내" 시간대만 발송
    - 날짜+시간대 키(YYYY-MM-DD-HH)로 중복 발송 방지
    - GitHub Actions cron 지연(최대 수분)에 강건하게 동작
    ========================================================================== */
@@ -28,8 +28,12 @@ function todayKST() {
   const k = nowKST();
   return `${k.getUTCFullYear()}-${String(k.getUTCMonth()+1).padStart(2,'0')}-${String(k.getUTCDate()).padStart(2,'0')}`;
 }
+function nowMinutesKST() {
+  const k = nowKST();
+  return k.getUTCHours() * 60 + k.getUTCMinutes();
+}
 function nowHourKST() {
-  return nowKST().getUTCHours(); // 0~23
+  return Math.floor(nowMinutesKST() / 60); // 로그 표시용 0~23
 }
 
 // ── FCM 메시지 빌더 ────────────────────────────────────────────────────────
@@ -103,6 +107,9 @@ async function sendFCM(messaging, docRef, token, title, body, tag, label) {
 
 // ── 메인 ──────────────────────────────────────────────────────────────────
 async function main() {
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT secret이 없습니다. GitHub Secrets 설정을 확인하세요.');
+  }
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
   admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 
@@ -110,7 +117,8 @@ async function main() {
   const messaging = admin.messaging();
 
   const today = todayKST();
-  const nowHour = nowHourKST();
+  const nowMinutes = nowMinutesKST();
+  const nowHour = Math.floor(nowMinutes / 60);
   console.log(`[도토리 약사님] KST ${today} ${String(nowHour).padStart(2,'0')}:xx${TEST_MODE ? ' (테스트)' : ''}`);
 
   const snap = await db.collection('users').get();
@@ -146,9 +154,14 @@ async function main() {
     let changed = false;
 
     for (const period of PERIODS) {
-      // ★ 핵심: 현재 시(hour)가 알림 시(hour) 이상이면 대상
-      //   (cron 지연, 서버 지연에 무관하게 안정적으로 동작)
-      if (nowHour < period.notifyHour) continue;
+      // ★ Android/Galaxy 핵심 수정:
+      // 현재 시간이 알림 시간보다 많이 지나간 경우에는 보내지 않습니다.
+      // 기존 코드(nowHour >= notifyHour)는 오후에 처음 토큰 등록 시
+      // 아침/점심/저녁 알림이 한꺼번에 밀려오는 문제가 있었습니다.
+      // GitHub Actions cron 지연을 감안해 알림 시간 후 0~14분까지만 허용합니다.
+      const targetMinutes = period.notifyHour * 60;
+      const diffMinutes = nowMinutes - targetMinutes;
+      if (diffMinutes < 0 || diffMinutes >= 15) continue;
 
       // 이 시간대에 오늘 이미 보냈으면 건너뜀
       const key = `${today}-${String(period.notifyHour).padStart(2,'0')}`;
