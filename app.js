@@ -598,17 +598,40 @@ async function getFcmToken() {
 }
 
 // 현재 state를 Firestore에 저장합니다. (GitHub Actions 체커가 이 데이터를 읽습니다)
+// ★ 같은 FCM 토큰을 가진 기존 문서가 있으면 먼저 삭제해서 중복 방지
 function syncToFirestore() {
   if (!firestoreDb || !currentUid) return;
-  firestoreDb.collection('users').doc(currentUid).set({
+
+  const data = {
     checks: state.checks,
     notified: state.notified,
     fcmToken: state.fcmToken || null,
     userAgent: navigator.userAgent || '',
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true }).catch((e) => {
-    console.warn('[도토리 약사님] Firestore 동기화 실패:', e);
-  });
+  };
+
+  // FCM 토큰이 있으면 같은 토큰을 가진 다른 uid 문서 삭제 후 저장
+  if (state.fcmToken) {
+    firestoreDb.collection('users')
+      .where('fcmToken', '==', state.fcmToken)
+      .get()
+      .then(snapshot => {
+        const deletePromises = snapshot.docs
+          .filter(doc => doc.id !== currentUid) // 내 문서 제외
+          .map(doc => {
+            console.log('[도토리] 중복 토큰 문서 삭제:', doc.id.slice(0, 8));
+            return doc.ref.delete();
+          });
+        return Promise.all(deletePromises);
+      })
+      .then(() => {
+        return firestoreDb.collection('users').doc(currentUid).set(data, { merge: true });
+      })
+      .catch(e => console.warn('[도토리 약사님] Firestore 동기화 실패:', e));
+  } else {
+    firestoreDb.collection('users').doc(currentUid).set(data, { merge: true })
+      .catch(e => console.warn('[도토리 약사님] Firestore 동기화 실패:', e));
+  }
 }
 
 
