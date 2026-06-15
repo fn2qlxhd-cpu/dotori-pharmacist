@@ -559,8 +559,20 @@ async function initFirebase() {
         || (payload.notification && payload.notification.body)
         || '';
       const tag = (payload.data && payload.data.tag) || `dotori-foreground-${Date.now()}`;
-      if (Notification.permission === 'granted') {
-        new Notification(title, { body, icon: 'icons/icon-192.png', tag });
+
+      // ★ iOS Safari는 new Notification() 미지원 → 서비스워커 showNotification() 사용
+      if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(reg => {
+          reg.showNotification(title, {
+            body,
+            icon: 'icons/icon-192.png',
+            badge: 'icons/icon-192.png',
+            tag,
+            requireInteraction: true,
+            renotify: true,
+            vibrate: [200, 100, 200],
+          });
+        });
       }
     });
 
