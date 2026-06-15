@@ -2,10 +2,7 @@ name: 도토리 약사님 - 복약 알림 체커
 
 on:
   schedule:
-    - cron: '0 0 * * *'   # KST 09:00
-    - cron: '0 4 * * *'   # KST 13:00
-    - cron: '0 10 * * *'  # KST 19:00
-    - cron: '0 12 * * *'  # KST 21:00
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       test_notification:
@@ -23,7 +20,7 @@ jobs:
       - name: Node.js 설치
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
 
       - name: 의존성 설치 (firebase-admin)
         working-directory: scripts
