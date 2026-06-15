@@ -498,10 +498,31 @@ function sendMedicationNotification(period, stage) {
   }
 }
 
-// 로컬 브라우저 알림 루프는 FCM/GitHub Actions 알림과 중복될 수 있어 사용하지 않습니다.
-// 실제 푸시는 scripts/check-medications.js가 Firestore의 발송 기록을 기준으로 하루 4회만 담당합니다.
+// 로컬 브라우저 알림 루프 — FCM이 늦거나 실패할 때 탭이 열려있으면 직접 발송
+// (tag가 같아서 FCM 알림과 겹쳐도 브라우저가 1개만 표시)
 function startNotificationLoop() {
-  return;
+  function checkAndNotify() {
+    if (Notification.permission !== 'granted') return;
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    APP_CONFIG.periods.forEach(period => {
+      const [h, m] = period.notifyTime.split(':').map(Number);
+      const targetMinutes = h * 60 + m;
+      const diff = currentMinutes - targetMinutes;
+
+      // 알림 시간 이후 10분 이내이고, 오늘 아직 발송 안 한 경우
+      if (diff >= 0 && diff < 10 && !state.notified[period.id]) {
+        state.notified[period.id] = 1;
+        saveJSON(STORAGE_KEYS.notified, state.notified);
+        sendMedicationNotification(period, 1);
+      }
+    });
+  }
+
+  setInterval(checkAndNotify, 30 * 1000);
+  checkAndNotify();
 }
 
 
