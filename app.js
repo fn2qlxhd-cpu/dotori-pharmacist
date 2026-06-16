@@ -603,35 +603,18 @@ async function getFcmToken() {
     if (!('serviceWorker' in navigator)) { console.warn('[도토리] SW 미지원'); return; }
     if (Notification.permission !== 'granted') { console.warn('[도토리] 알림 권한 없음'); return; }
 
-    // 2) FCM 전용 서비스워커(firebase-messaging-sw.js) 등록 또는 기존 것 재사용
-    //    ★ navigator.serviceWorker.ready 는 service-worker.js 를 반환할 수 있어
-    //      FCM 토큰 발급이 401로 거부됩니다. 반드시 이름을 명시해야 합니다.
-    let messagingSWReg;
-    const existingRegs = await navigator.serviceWorker.getRegistrations();
-    messagingSWReg = existingRegs.find(
-      r => r.active && r.active.scriptURL.includes('firebase-messaging-sw.js')
-    );
-
-    if (!messagingSWReg) {
-      messagingSWReg = await navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: './' });
-      // 활성화될 때까지 최대 5초 대기
-      await Promise.race([
-        new Promise(resolve => {
-          if (messagingSWReg.active) { resolve(); return; }
-          messagingSWReg.addEventListener('updatefound', () => {
-            const w = messagingSWReg.installing;
-            w.addEventListener('statechange', () => { if (w.state === 'activated') resolve(); });
-          });
-        }),
-        new Promise(r => setTimeout(r, 5000)),
-      ]);
-    }
-    console.log('[도토리] FCM SW 준비됨:', messagingSWReg.scope);
+    // 2) ★ 서비스워커는 이제 하나(service-worker.js)만 사용합니다.
+    //    이전에는 firebase-messaging-sw.js 를 같은 scope('./')에 별도로 등록해서
+    //    두 서비스워커가 활성 상태를 두고 경쟁하는 문제가 있었습니다(특히 iOS).
+    //    registerServiceWorker()에서 이미 등록한 service-worker.js가
+    //    FCM 백그라운드 핸들러까지 포함하므로, 그게 활성화될 때까지만 기다립니다.
+    const swReg = await navigator.serviceWorker.ready;
+    console.log('[도토리] SW 준비됨(통합):', swReg.scope, swReg.active && swReg.active.scriptURL);
 
     // 3) FCM 토큰 요청
     const token = await fcmMessaging.getToken({
       vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: messagingSWReg,
+      serviceWorkerRegistration: swReg,
     });
 
     if (token) {

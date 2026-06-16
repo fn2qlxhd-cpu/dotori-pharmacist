@@ -55,7 +55,7 @@ function buildMessage(token, title, body, tag) {
     webpush: {
       headers: { Urgency: 'high' },
       // ★ webpush.notification을 넣지 않음 — 브라우저 자동표시 + SW 수동표시
-      //    중복(2개) 문제 방지. 안드로이드/크롬은 firebase-messaging-sw.js의
+      //    중복(2개) 문제 방지. 안드로이드/크롬은 service-worker.js(통합)의
       //    onBackgroundMessage가 data를 받아 1번만 showNotification 합니다.
       fcmOptions: { link: '/' },
     },
