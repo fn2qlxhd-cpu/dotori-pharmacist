@@ -1,11 +1,11 @@
 name: 도토리 약사님 - 복약 알림 체커
 
+# ★ schedule(cron) 트리거를 의도적으로 비워둡니다.
+#   시간 트리거는 cron-job.org가 GitHub API를 통해 workflow_dispatch로
+#   직접 호출합니다. 여기에 schedule을 동시에 두면, GitHub Actions 자체
+#   cron과 cron-job.org가 같은 시각에 각각 워크플로우를 실행시켜 같은
+#   사람에게 알림이 중복 발송되는 원인이 됩니다.
 on:
-  schedule:
-    # KST 09:00 / 13:00 / 19:00 / 21:00
-    # UTC 00:00 / 04:00 / 10:00 / 12:00
-    - cron: '0 0,4,10,12 * * *'
-
   workflow_dispatch:
     inputs:
       test_notification:
@@ -13,14 +13,15 @@ on:
         type: boolean
         default: false
 
+# ★ concurrency: 같은 그룹의 실행이 겹치면 "이전 실행을 취소"하지 않고
+#   "끝날 때까지 기다렸다가" 다음 실행을 시작합니다.
 concurrency:
   group: dotori-medication-check
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   check:
     runs-on: ubuntu-latest
-
     steps:
       - name: 저장소 체크아웃
         uses: actions/checkout@v4
