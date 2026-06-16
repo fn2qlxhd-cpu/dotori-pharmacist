@@ -14,7 +14,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 
 // ── 캐시 버전 (배포 시 숫자 올리기) ────────────────────────────────────
-const CACHE_NAME = 'dotori-pharmacist-v24-unified';
+const CACHE_NAME = 'dotori-pharmacist-v25-unified';
 
 const APP_SHELL = [
   './',

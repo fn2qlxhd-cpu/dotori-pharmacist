@@ -99,6 +99,66 @@ async function sendFCM(messaging, docRef, token, title, body, tag, label) {
   }
 }
 
+// ── 한 사람에 대해 발송 전, 트랜잭션으로 "이번에 내가 보낸다"를 먼저 확정 ──
+//    같은 워크플로우가 어떤 이유로든(겹친 실행, 재시도 등) 동시에 돌고 있어도
+//    Firestore 트랜잭션은 한 번에 하나만 성공하도록 보장하므로, 두 실행이
+//    동시에 "아직 안 보냈다"고 읽는 race condition을 막을 수 있습니다.
+async function claimAndSend(db, messaging, docRef, token, today, nowHour, label) {
+  let toSend = null;
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(docRef);
+    const data = snap.data() || {};
+    const storedKeys = (data.notifiedKeys && data.notifiedKeys.date === today)
+      ? { ...data.notifiedKeys }
+      : { date: today };
+
+    // ★ 미발송 period 중 정확히 하나만 골라서 claim합니다.
+    //   (이전 버전 버그: for문이 모든 미발송 period의 키를 한꺼번에 true로
+    //    찜해버려서, 실제로는 sendFCM이 호출되지 않은 시간대까지 "발송됨"으로
+    //    기록되는 문제가 있었습니다. 한 번의 claimAndSend 호출 = 정확히
+    //    하나의 period만 처리하도록 고치고, 나머지는 재귀 호출로 이어받습니다.)
+    let target = null;
+    for (const period of PERIODS) {
+      if (nowHour < period.notifyHour) continue;
+      const key = `${today}-${String(period.notifyHour).padStart(2,'0')}`;
+      if (storedKeys[key]) continue; // 이미 보냈거나, 이미 다른 실행이 claim함
+      target = { period, key };
+      break; // 딱 하나만
+    }
+
+    if (target) {
+      storedKeys[target.key] = true; // 이 period만 claim
+      tx.update(docRef, { notifiedKeys: storedKeys });
+      toSend = target;
+    }
+  });
+
+  if (!toSend) return; // 보낼 게 없음(이미 다 보냈거나 시간 안 됨)
+
+  const { period, key } = toSend;
+  const ok = await sendFCM(messaging, docRef, token,
+    APP_NAME, period.message,
+    `dotori-${period.id}-${key}`,
+    `${period.id} (${String(period.notifyHour).padStart(2,'0')}시)`);
+
+  if (!ok) {
+    // 실제 전송이 실패했으면 claim을 되돌려서 다음 실행 때 재시도 가능하게 함
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(docRef);
+      const data = snap.data() || {};
+      if (data.notifiedKeys && data.notifiedKeys[key]) {
+        const reverted = { ...data.notifiedKeys };
+        delete reverted[key];
+        tx.update(docRef, { notifiedKeys: reverted });
+      }
+    });
+  }
+
+  // 같은 사람에게 같은 실행에서 여러 시간대가 밀려있을 수 있으니 재귀적으로 계속 처리
+  await claimAndSend(db, messaging, docRef, token, today, nowHour, label);
+}
+
 // ── 메인 ──────────────────────────────────────────────────────────────────
 async function main() {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -135,40 +195,7 @@ async function main() {
       continue;
     }
 
-    // ── 중복 방지 키 저장소 (notifiedKeys: { 'YYYY-MM-DD-HH': true }) ──────
-    // 날짜가 바뀌었으면 초기화
-    const storedKeys = (data.notifiedKeys && data.notifiedKeys.date === today)
-      ? { ...data.notifiedKeys }
-      : { date: today };
-
-    let changed = false;
-
-    for (const period of PERIODS) {
-      // ★ 핵심: 현재 시(hour)가 알림 시(hour) 이상이면 대상
-      //   (cron 지연, 서버 지연에 무관하게 안정적으로 동작)
-      if (nowHour < period.notifyHour) continue;
-
-      // 이 시간대에 오늘 이미 보냈으면 건너뜀
-      const key = `${today}-${String(period.notifyHour).padStart(2,'0')}`;
-      if (storedKeys[key]) {
-        console.log(`  - ${doc.id.slice(0,8)}: ${key} 이미 발송 → 스킵`);
-        continue;
-      }
-
-      const ok = await sendFCM(messaging, doc.ref, token,
-        APP_NAME, period.message,
-        `dotori-${period.id}-${key}`,
-        `${period.id} (${String(period.notifyHour).padStart(2,'0')}시)`);
-
-      if (ok) {
-        storedKeys[key] = true;
-        changed = true;
-      }
-    }
-
-    if (changed) {
-      await doc.ref.update({ notifiedKeys: storedKeys });
-    }
+    await claimAndSend(db, messaging, doc.ref, token, today, nowHour, doc.id.slice(0,8));
   }
 
   console.log('[도토리 약사님] 완료');
