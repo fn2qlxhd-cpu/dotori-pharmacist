@@ -1,27 +1,42 @@
 name: 도토리 약사님 - 복약 알림 체커
+
 on:
+  schedule:
+    # KST 09:00 / 13:00 / 19:00 / 21:00
+    # UTC 00:00 / 04:00 / 10:00 / 12:00
+    - cron: '0 0,4,10,12 * * *'
+
   workflow_dispatch:
     inputs:
       test_notification:
         description: '시간 조건 없이 등록된 모든 기기에 테스트 알림을 1개씩 즉시 보냅니다'
         type: boolean
         default: false
+
+concurrency:
+  group: dotori-medication-check
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-latest
+
     steps:
       - name: 저장소 체크아웃
         uses: actions/checkout@v4
+
       - name: Node.js 설치
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: 의존성 설치 (firebase-admin)
+
+      - name: 의존성 설치
         working-directory: scripts
         run: npm install
+
       - name: 복약 시간 확인 + 알림 발송
         working-directory: scripts
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          TEST_NOTIFICATION: ${{ inputs.test_notification }}
+          TEST_NOTIFICATION: ${{ github.event.inputs.test_notification || 'false' }}
         run: node check-medications.js
