@@ -50,12 +50,16 @@ function normalizeToken(token) {
   return String(token || '').trim();
 }
 
-function deviceKey(data, token) {
-  // 같은 폰/브라우저에서 익명 uid가 여러 개 생긴 경우를 막기 위한 키.
-  // userAgent가 없으면 token 기준으로만 중복 제거합니다.
-  const ua = String(data.userAgent || '').trim();
-  return ua || `token:${token}`;
-}
+// ★ 이전 버전에서는 userAgent로 "같은 기기"를 추정해서 문서를 묶었는데,
+//   userAgent 정규화를 어떻게 하든 (1) 같은 모델의 서로 다른 두 대를
+//   같은 기기로 잘못 합치거나, (2) OS/브라우저 패치 버전이 바뀌면 같은
+//   기기를 다른 기기로 잘못 나누는 문제를 동시에 해결할 수 없었습니다.
+//   userAgent는 기기를 식별하는 신뢰할 수 있는 키가 아닙니다.
+//   그래서 이 방식은 완전히 폐기하고, 중복 제어는 오직 FCM 토큰 값
+//   자체로만 합니다. 같은 기기에서 토큰이 갱신되어 옛 토큰이 남아있는
+//   문제는 app.js의 syncToFirestore()가 같은 토큰을 가진 옛 문서를
+//   이미 정리하고 있으므로, 서버 스크립트는 Firestore에 남아있는
+//   문서들을 있는 그대로 신뢰하고 토큰당 1회만 보냅니다.
 
 function buildMessage(token, title, body, tag) {
   const t = String(title || APP_NAME);
@@ -95,8 +99,11 @@ async function sendFCM(messaging, docRef, token, title, body, tag, label) {
       err.code === 'messaging/registration-token-not-registered' ||
       err.code === 'messaging/invalid-registration-token'
     ) {
-      await docRef.update({ fcmToken: null });
-      console.log(`    → 만료된 토큰 정리`);
+      // ★ fcmToken만 null로 지우면 죽은 문서가 Firestore에 계속 쌓이고,
+      //   나중에 사람이 직접 들어가서 일일이 지워야 했습니다.
+      //   토큰이 무효하다고 FCM이 확인해준 경우이므로 문서 자체를 삭제합니다.
+      await docRef.delete();
+      console.log(`    → 무효 토큰 문서 삭제`);
     }
     return false;
   }
@@ -157,8 +164,11 @@ async function claimAndSend(db, messaging, docRef, token, today, nowHour, label)
   }
 }
 
-function pickLatestDocsPerDevice(docs) {
-  const byDevice = new Map();
+function pickLatestDocsPerToken(docs) {
+  // ★ 같은 FCM 토큰 값을 가진 문서가 여러 개 있을 경우(이론상 거의 없지만
+  //   대비 차원에서)만 가장 최신 updatedAt 문서 1개로 좁힙니다.
+  //   기기 식별은 토큰 자체가 사실상 유일한 신뢰 가능한 키입니다.
+  const byToken = new Map();
   let noTokenCount = 0;
 
   for (const doc of docs) {
@@ -170,8 +180,7 @@ function pickLatestDocsPerDevice(docs) {
       continue;
     }
 
-    const key = deviceKey(data, token);
-    const current = byDevice.get(key);
+    const current = byToken.get(token);
     const item = {
       doc,
       data,
@@ -180,11 +189,11 @@ function pickLatestDocsPerDevice(docs) {
     };
 
     if (!current || item.updatedMs >= current.updatedMs) {
-      byDevice.set(key, item);
+      byToken.set(token, item);
     }
   }
 
-  return { selected: Array.from(byDevice.values()), noTokenCount };
+  return { selected: Array.from(byToken.values()), noTokenCount };
 }
 
 async function main() {
@@ -201,7 +210,7 @@ async function main() {
   const snap = await db.collection('users').get();
   console.log(`[도토리 약사님] 등록 문서: ${snap.size}개`);
 
-  const { selected, noTokenCount } = pickLatestDocsPerDevice(snap.docs);
+  const { selected, noTokenCount } = pickLatestDocsPerToken(snap.docs);
   console.log(`[도토리 약사님] 토큰 없음: ${noTokenCount}개`);
   console.log(`[도토리 약사님] 실제 발송 대상(기기 중복 제거 후): ${selected.length}개`);
 
