@@ -498,31 +498,12 @@ function sendMedicationNotification(period, stage) {
   }
 }
 
-// 로컬 브라우저 알림 루프 — FCM이 늦거나 실패할 때 탭이 열려있으면 직접 발송
-// (tag가 같아서 FCM 알림과 겹쳐도 브라우저가 1개만 표시)
+// 로컬 브라우저 알림 루프
+// v14 최종 수정: 중복 알림의 가장 큰 원인이 될 수 있어 완전히 비활성화합니다.
+// 알림 발송 권한은 GitHub Actions의 scripts/check-medications.js 한 곳만 가집니다.
+// 즉, 탭이 열려 있어도 브라우저 자체 setInterval 알림을 추가로 만들지 않습니다.
 function startNotificationLoop() {
-  function checkAndNotify() {
-    if (Notification.permission !== 'granted') return;
-
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-    APP_CONFIG.periods.forEach(period => {
-      const [h, m] = period.notifyTime.split(':').map(Number);
-      const targetMinutes = h * 60 + m;
-      const diff = currentMinutes - targetMinutes;
-
-      // 알림 시간 이후 10분 이내이고, 오늘 아직 발송 안 한 경우
-      if (diff >= 0 && diff < 10 && !state.notified[period.id]) {
-        state.notified[period.id] = 1;
-        saveJSON(STORAGE_KEYS.notified, state.notified);
-        sendMedicationNotification(period, 1);
-      }
-    });
-  }
-
-  setInterval(checkAndNotify, 30 * 1000);
-  checkAndNotify();
+  console.log('[도토리] 로컬 알림 루프 비활성화: FCM 서버 알림만 사용');
 }
 
 

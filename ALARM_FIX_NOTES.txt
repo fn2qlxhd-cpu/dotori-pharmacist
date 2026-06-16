@@ -1,0 +1,44 @@
+도토리 약사님 알림 중복 최종 수정 내역
+
+목표
+- 하루 4개 시간만 알림 발송: 09:00 / 13:00 / 19:00 / 21:00
+- 각 시간에는 해당 알림 1종류만 발송
+- 21시에 morning/lunch/dinner 누락분을 몰아서 보내지 않음
+- Web FCM 자동표시 + 서비스워커 수동표시 중복 차단
+- 앱 탭이 열려 있어도 로컬 setInterval 알림을 추가 발송하지 않음
+
+수정 파일
+1) scripts/check-medications.js
+- 코드버전 v14-data-only-exact-hour-device-dedupe
+- 현재 KST hour와 정확히 같은 PERIOD만 발송
+- top-level notification payload 제거
+- data-only FCM으로 발송하여 브라우저 자동표시와 service-worker showNotification 중복 방지
+- 같은 실행 내 같은 token 중복 발송 방지
+- userAgent/deviceKey 기준 최신 문서만 선택
+- Firestore notifiedKeys 트랜잭션으로 같은 날짜+시간대 중복 claim 방지
+
+2) app.js
+- startNotificationLoop() 완전 비활성화
+- 알림 발송 권한은 GitHub Actions 서버 스크립트 한 곳만 갖도록 변경
+- foreground FCM onMessage는 tag 기준 5분 중복 방어 유지
+
+3) service-worker.js
+- 캐시 버전 v26-unified-data-only로 갱신
+- install 단계에서 self.skipWaiting() 호출하여 새 서비스워커 빠르게 활성화
+- FCM 백그라운드 알림은 data payload를 받아 service-worker에서만 1회 표시
+- tag 기준 5분 중복 방어 유지
+
+4) .github/workflows/medication-check.yml
+- schedule 없음 유지
+- workflow_dispatch만 사용
+- concurrency로 동시 실행 중복 방지 유지
+
+정상 로그 예시
+- KST 09시: morning만 출력
+- KST 13시: lunch만 출력
+- KST 19시: dinner만 출력
+- KST 21시: night만 출력
+
+배포 후 권장 확인
+- 휴대폰에서 앱을 한 번 열어 새 service-worker.js가 적용되게 하기
+- 브라우저 설정/앱 캐시가 오래 남아 있으면 홈 화면 앱을 완전히 종료 후 다시 열기

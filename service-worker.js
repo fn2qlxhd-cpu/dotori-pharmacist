@@ -1,5 +1,5 @@
 /* ==========================================================================
-   도토리 약사님 — service-worker.js (v24-unified)
+   도토리 약사님 — service-worker.js (v26-unified-data-only)
    PWA 캐시 + FCM 백그라운드 알림을 단일 서비스워커로 통합
    ★ 이전에는 service-worker.js와 firebase-messaging-sw.js 두 개를 같은
      scope('./')로 각각 등록했는데, 한 origin/scope에는 활성 서비스워커가
@@ -14,7 +14,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 
 // ── 캐시 버전 (배포 시 숫자 올리기) ────────────────────────────────────
-const CACHE_NAME = 'dotori-pharmacist-v25-unified';
+const CACHE_NAME = 'dotori-pharmacist-v26-unified-data-only';
 
 const APP_SHELL = [
   './',
@@ -30,6 +30,7 @@ const APP_SHELL = [
 
 // ── 설치: 앱 파일 캐싱 + 즉시 활성화 시도 ──────────────────────────────
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(APP_SHELL))
