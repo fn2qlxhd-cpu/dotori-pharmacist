@@ -560,6 +560,17 @@ async function initFirebase() {
         || '';
       const tag = (payload.data && payload.data.tag) || `dotori-foreground-${Date.now()}`;
 
+      // ★ 중복 방어: 같은 tag가 짧은 시간 안에 또 들어오면 무시 (FCM at-least-once delivery 대응)
+      if (!window.__dotoriSeenTags) window.__dotoriSeenTags = new Map();
+      const seen = window.__dotoriSeenTags;
+      const now = Date.now();
+      for (const [t, ts] of seen) { if (now - ts > 5 * 60 * 1000) seen.delete(t); }
+      if (seen.has(tag)) {
+        console.log('[도토리] 중복 알림 감지, 표시 스킵:', tag);
+        return;
+      }
+      seen.set(tag, now);
+
       // ★ iOS Safari는 new Notification() 미지원 → 서비스워커 showNotification() 사용
       if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
         navigator.serviceWorker.ready.then(reg => {
@@ -568,8 +579,8 @@ async function initFirebase() {
             icon: 'icons/icon-192.png',
             badge: 'icons/icon-192.png',
             tag,
+            // ★ renotify 제거 — 같은 tag 강제 재알림이 중복 표시 원인이 될 수 있음
             requireInteraction: true,
-            renotify: true,
             vibrate: [200, 100, 200],
           });
         });
